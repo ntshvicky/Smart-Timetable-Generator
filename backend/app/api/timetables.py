@@ -48,8 +48,11 @@ def edit_entry(timetable_id: int, payload: ManualEditRequest, db: Session = Depe
 
 
 @router.post("/{timetable_id}/validate", response_model=list)
-def validate_entry(timetable_id: int, payload: ManualEditRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    conflicts = SchedulerService(db).validate_assignment(current_user.school_id, timetable_id, payload.section_id, payload.day, payload.period_number, payload.subject_id, payload.teacher_id)
+def validate_entry(timetable_id: int, payload: ManualEditRequest | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    service = SchedulerService(db)
+    conflicts = service.validate_timetable(current_user.school_id, timetable_id)
+    if payload:
+        conflicts.extend(service.validate_assignment(current_user.school_id, timetable_id, payload.section_id, payload.day, payload.period_number, payload.subject_id, payload.teacher_id))
     return [c.model_dump() for c in conflicts]
 
 

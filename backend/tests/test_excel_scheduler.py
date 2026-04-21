@@ -50,6 +50,18 @@ def test_timetable_generation_success_and_subject_frequency(db: Session) -> None
     count = len(db.scalars(select(TimetableEntry).where(TimetableEntry.timetable_id == result.timetable_id, TimetableEntry.section_id == section.id, TimetableEntry.subject_id == math.id)).all())
     assert count == 5
     assert result.timetable_id > 0
+    assert not SchedulerService(db).validate_timetable(1, result.timetable_id)
+
+
+def test_generated_timetable_never_assigns_same_teacher_to_multiple_classes_in_same_slot(db: Session) -> None:
+    import_demo(db)
+    result = SchedulerService(db).generate(1, 1, "No Double Booking")
+    entries = db.scalars(select(TimetableEntry).where(TimetableEntry.timetable_id == result.timetable_id, TimetableEntry.teacher_id.is_not(None))).all()
+    seen: set[tuple[int, str, int]] = set()
+    for entry in entries:
+        slot = (entry.teacher_id, entry.day, entry.period_number)
+        assert slot not in seen
+        seen.add(slot)
 
 
 def test_impossible_schedule_reports_capacity_conflict(db: Session) -> None:
@@ -94,6 +106,26 @@ def test_manual_edit_prevents_teacher_double_booking(db: Session) -> None:
     busy_entry.teacher_id = teacher.id
     db.commit()
     conflicts = SchedulerService(db).manual_edit(1, result.timetable_id, section.id, "Monday", 1, subject.id, teacher.id)
+    assert any(conflict.code == "teacher_double_booked" for conflict in conflicts)
+
+
+def test_full_timetable_validation_detects_existing_teacher_clash(db: Session) -> None:
+    import_demo(db)
+    result = SchedulerService(db).generate(1, 1, "Stored Clash")
+    section = db.scalar(select(Section).where(Section.display_name == "Class 5A"))
+    other_section = db.scalar(select(Section).where(Section.display_name == "Class 5B"))
+    teacher = db.scalar(select(Teacher).where(Teacher.code == "T-RAVI"))
+    subject = db.scalar(select(Subject).where(Subject.code == "MATH"))
+    first_entry = db.scalar(select(TimetableEntry).where(TimetableEntry.timetable_id == result.timetable_id, TimetableEntry.section_id == section.id, TimetableEntry.day == "Tuesday", TimetableEntry.period_number == 2))
+    second_entry = db.scalar(select(TimetableEntry).where(TimetableEntry.timetable_id == result.timetable_id, TimetableEntry.section_id == other_section.id, TimetableEntry.day == "Tuesday", TimetableEntry.period_number == 2))
+    first_entry.subject_id = subject.id
+    first_entry.teacher_id = teacher.id
+    second_entry.subject_id = subject.id
+    second_entry.teacher_id = teacher.id
+    db.commit()
+
+    conflicts = SchedulerService(db).validate_timetable(1, result.timetable_id)
+
     assert any(conflict.code == "teacher_double_booked" for conflict in conflicts)
 
 

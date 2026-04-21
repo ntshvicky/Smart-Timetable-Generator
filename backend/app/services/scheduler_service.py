@@ -3,6 +3,8 @@ from __future__ import annotations
 import json
 from dataclasses import dataclass
 
+from collections import defaultdict
+
 from sqlalchemy import delete, select
 from sqlalchemy.orm import Session
 
@@ -83,6 +85,9 @@ class SchedulerService:
                 subject = self.db.get(Subject, subject_id)
                 conflicts.append(Conflict(code="frequency_unmet", message=f"{subject.name if subject else subject_id} could not be fully allocated for {section.display_name}", context={"section_id": section.id, "subject_id": subject_id}))
 
+        self.db.flush()
+        conflicts.extend(self.validate_timetable(school_id, timetable.id))
+        conflicts = self._dedupe_conflicts(conflicts)
         timetable.conflict_summary = json.dumps([c.model_dump() for c in conflicts])
         timetable.status = "conflicts" if conflicts else "generated"
         self.db.commit()
@@ -118,7 +123,7 @@ class SchedulerService:
             )
             for e in entries
         ]
-        conflicts = [Conflict(**item) for item in json.loads(timetable.conflict_summary or "[]")]
+        conflicts = self._dedupe_conflicts([Conflict(**item) for item in json.loads(timetable.conflict_summary or "[]")] + self.validate_timetable(school_id, timetable_id))
         return TimetableResponse(timetable_id=timetable.id, name=timetable.name, status=timetable.status, days=self._days(school_id), periods=[p.period_number for p in self._periods(school_id)], entries=cells, conflicts=conflicts)
 
     def manual_edit(self, school_id: int, timetable_id: int, section_id: int, day: str, period_number: int, subject_id: int | None, teacher_id: int | None, notes: str = "") -> list[Conflict]:
@@ -150,6 +155,37 @@ class SchedulerService:
             busy = self.db.scalar(select(TimetableEntry).where(TimetableEntry.school_id == school_id, TimetableEntry.timetable_id == timetable_id, TimetableEntry.teacher_id == teacher_id, TimetableEntry.day == day, TimetableEntry.period_number == period_number, TimetableEntry.section_id != section_id))
             if busy:
                 conflicts.append(Conflict(code="teacher_double_booked", message="Teacher is already assigned in this slot"))
+        return conflicts
+
+    def validate_timetable(self, school_id: int, timetable_id: int) -> list[Conflict]:
+        entries = self.db.scalars(
+            select(TimetableEntry).where(
+                TimetableEntry.school_id == school_id,
+                TimetableEntry.timetable_id == timetable_id,
+                TimetableEntry.teacher_id.is_not(None),
+                TimetableEntry.subject_id.is_not(None),
+            )
+        ).all()
+        by_teacher_slot: dict[tuple[int, str, int], list[TimetableEntry]] = defaultdict(list)
+        for entry in entries:
+            by_teacher_slot[(entry.teacher_id, entry.day, entry.period_number)].append(entry)
+
+        teachers = {t.id: t for t in self.db.scalars(select(Teacher).where(Teacher.school_id == school_id)).all()}
+        sections = {s.id: s for s in self.db.scalars(select(Section).where(Section.school_id == school_id)).all()}
+        conflicts: list[Conflict] = []
+        for (teacher_id, day, period_number), slot_entries in by_teacher_slot.items():
+            section_ids = sorted({entry.section_id for entry in slot_entries})
+            if len(section_ids) <= 1:
+                continue
+            teacher_name = teachers[teacher_id].name if teacher_id in teachers else str(teacher_id)
+            section_names = [sections[sid].display_name if sid in sections else str(sid) for sid in section_ids]
+            conflicts.append(
+                Conflict(
+                    code="teacher_double_booked",
+                    message=f"{teacher_name} is assigned to multiple classes on {day} period {period_number}: {', '.join(section_names)}",
+                    context={"teacher_id": teacher_id, "day": day, "period": period_number, "section_ids": section_ids},
+                )
+            )
         return conflicts
 
     def _preflight(self, school_id: int, sections: list[Section], days: list[str], periods: list[PeriodDefinition]) -> list[Conflict]:
@@ -226,3 +262,14 @@ class SchedulerService:
 
     def _active_constraints(self, school_id: int) -> list[SchedulingConstraint]:
         return self.db.scalars(select(SchedulingConstraint).where(SchedulingConstraint.school_id == school_id, SchedulingConstraint.is_active.is_(True))).all()
+
+    def _dedupe_conflicts(self, conflicts: list[Conflict]) -> list[Conflict]:
+        seen: set[str] = set()
+        unique: list[Conflict] = []
+        for conflict in conflicts:
+            key = json.dumps(conflict.model_dump(), sort_keys=True)
+            if key in seen:
+                continue
+            seen.add(key)
+            unique.append(conflict)
+        return unique
