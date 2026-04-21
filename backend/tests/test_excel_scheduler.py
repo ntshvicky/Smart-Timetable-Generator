@@ -7,7 +7,7 @@ from sqlalchemy.orm import Session
 
 from app.api.admin import overview
 from app.api.deps import require_superadmin
-from app.models import AuditLog, ClassSubjectRequirement, Section, Subject, Teacher, TimetableEntry, User
+from app.models import AcademicYear, AuditLog, ClassSubjectRequirement, Section, Subject, Teacher, Timetable, TimetableEntry, User
 from app.services.excel_service import ExcelService
 from app.services.gemini_service import GeminiConstraintService
 from app.services.scheduler_service import SchedulerService
@@ -62,6 +62,22 @@ def test_generated_timetable_never_assigns_same_teacher_to_multiple_classes_in_s
         slot = (entry.teacher_id, entry.day, entry.period_number)
         assert slot not in seen
         seen.add(slot)
+
+
+def test_latest_timetable_loads_active_academic_year_only(db: Session) -> None:
+    import_demo(db)
+    service = SchedulerService(db)
+    first = service.generate(1, 1, "First Active Year")
+    active_year = db.scalar(select(AcademicYear).where(AcademicYear.school_id == 1, AcademicYear.is_active.is_(True)))
+    old = Timetable(school_id=1, academic_year_id=None, name="Old Year Timetable", status="generated", generated_by_user_id=1)
+    db.add(old)
+    db.commit()
+
+    latest = service.get_latest_timetable(1)
+
+    assert active_year is not None
+    assert latest.timetable_id == first.timetable_id
+    assert latest.name == "First Active Year"
 
 
 def test_impossible_schedule_reports_capacity_conflict(db: Session) -> None:

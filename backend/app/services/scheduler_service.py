@@ -126,6 +126,23 @@ class SchedulerService:
         conflicts = self._dedupe_conflicts([Conflict(**item) for item in json.loads(timetable.conflict_summary or "[]")] + self.validate_timetable(school_id, timetable_id))
         return TimetableResponse(timetable_id=timetable.id, name=timetable.name, status=timetable.status, days=self._days(school_id), periods=[p.period_number for p in self._periods(school_id)], entries=cells, conflicts=conflicts)
 
+    def get_latest_timetable(self, school_id: int, section_id: int | None = None, teacher_id: int | None = None) -> TimetableResponse:
+        active_year_id = self._active_year_id(school_id)
+        stmt = select(Timetable).where(Timetable.school_id == school_id)
+        if active_year_id:
+            stmt = stmt.where(Timetable.academic_year_id == active_year_id)
+        row = self.db.scalar(stmt.order_by(Timetable.created_at.desc(), Timetable.id.desc()).limit(1))
+        if not row:
+            raise ValueError("Timetable not found")
+        return self.get_timetable(school_id, row.id, section_id, teacher_id)
+
+    def list_timetables(self, school_id: int) -> list[Timetable]:
+        active_year_id = self._active_year_id(school_id)
+        stmt = select(Timetable).where(Timetable.school_id == school_id)
+        if active_year_id:
+            stmt = stmt.where(Timetable.academic_year_id == active_year_id)
+        return self.db.scalars(stmt.order_by(Timetable.created_at.desc(), Timetable.id.desc())).all()
+
     def manual_edit(self, school_id: int, timetable_id: int, section_id: int, day: str, period_number: int, subject_id: int | None, teacher_id: int | None, notes: str = "") -> list[Conflict]:
         conflicts = self.validate_assignment(school_id, timetable_id, section_id, day, period_number, subject_id, teacher_id)
         if conflicts:

@@ -133,6 +133,13 @@ export const api = {
   rules: () => request<Constraint[]>("/api/rules"),
   generate: (name: string) => request<Timetable>("/api/timetables/generate", { method: "POST", body: JSON.stringify({ name }) }),
   timetables: () => request<{ id: number; name: string; status: string; created_at: string }[]>("/api/timetables"),
+  latestTimetable: (sectionId?: number, teacherId?: number) => {
+    const params = new URLSearchParams();
+    if (sectionId) params.set("section_id", String(sectionId));
+    if (teacherId) params.set("teacher_id", String(teacherId));
+    const suffix = params.toString();
+    return request<Timetable>(`/api/timetables/latest${suffix ? `?${suffix}` : ""}`);
+  },
   timetable: (id: number, sectionId?: number, teacherId?: number) => {
     const params = new URLSearchParams();
     if (sectionId) params.set("section_id", String(sectionId));

@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 
 from app.api.deps import get_current_user
 from app.core.database import get_db
-from app.models import Section, Timetable, User
+from app.models import Section, User
 from app.schemas.timetable import GenerateRequest, ManualEditRequest, TimetableResponse
 from app.services.scheduler_service import SchedulerService
 from app.services.audit_service import AuditService
@@ -26,8 +26,16 @@ def generate(payload: GenerateRequest, db: Session = Depends(get_db), current_us
 
 @router.get("")
 def list_timetables(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    rows = db.scalars(select(Timetable).where(Timetable.school_id == current_user.school_id).order_by(Timetable.id.desc())).all()
+    rows = SchedulerService(db).list_timetables(current_user.school_id)
     return [{"id": row.id, "name": row.name, "status": row.status, "created_at": row.created_at.isoformat()} for row in rows]
+
+
+@router.get("/latest", response_model=TimetableResponse)
+def get_latest_timetable(section_id: int | None = None, teacher_id: int | None = None, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
+    try:
+        return SchedulerService(db).get_latest_timetable(current_user.school_id, section_id, teacher_id)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
 
 
 @router.get("/{timetable_id}", response_model=TimetableResponse)

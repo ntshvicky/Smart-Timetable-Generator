@@ -34,7 +34,16 @@ export function App() {
       setSummary(s);
       setMasters(m);
       setTimetables(ts);
-      if (!selectedSection && m.sections[0]) setSelectedSection(m.sections[0].id);
+      const nextSectionId = selectedSection ?? m.sections[0]?.id ?? null;
+      if (!selectedSection && nextSectionId) setSelectedSection(nextSectionId);
+      if (!ts.length) {
+        setTimetable(null);
+        return;
+      }
+      if (!timetable || !ts.some((item) => item.id === timetable.timetable_id)) {
+        const latest = await api.latestTimetable(selectedTeacher ? undefined : nextSectionId ?? undefined, selectedTeacher ?? undefined);
+        setTimetable(latest);
+      }
     } catch (error) {
       if (error instanceof AuthError) {
         localStorage.removeItem("token");
@@ -90,7 +99,7 @@ export function App() {
   async function generate() {
     const result = await api.generate(`Weekly Timetable ${new Date().toLocaleString()}`);
     setTimetable(result);
-    setMessage(result.conflicts.length ? `Generated with ${result.conflicts.length} conflicts to review` : "Timetable generated successfully");
+    setMessage(result.conflicts.length ? `Generated all classes with ${result.conflicts.length} conflicts to review` : "All class timetables generated successfully");
     await refresh();
   }
 
@@ -100,8 +109,8 @@ export function App() {
     setMessage("Timetable export downloaded");
   }
 
-  async function loadTimetable(id: number) {
-    const result = await api.timetable(id, selectedTeacher ? undefined : selectedSection ?? undefined, selectedTeacher ?? undefined);
+  async function loadTimetable(id: number, sectionId = selectedSection, teacherId = selectedTeacher) {
+    const result = await api.timetable(id, teacherId ? undefined : sectionId ?? undefined, teacherId ?? undefined);
     setTimetable(result);
   }
 
@@ -234,21 +243,30 @@ export function App() {
 
         <section id="generate" className="band">
           <div className="sectionHeader">
-            <h2>Timetable</h2>
+            <h2>School Year Timetable</h2>
             <div className="actions">
               <select onChange={(event) => loadTimetable(Number(event.target.value))} defaultValue="">
                 <option value="" disabled>Select timetable</option>
                 {timetables.map((item) => <option key={item.id} value={item.id}>{item.name} · {item.status}</option>)}
               </select>
-              <button onClick={generate}><Play size={16} /> Generate</button>
+              <button onClick={generate}><Play size={16} /> Generate All Classes</button>
               {timetable && <button onClick={exportTimetable}><Download size={16} /> Export</button>}
             </div>
           </div>
           <div className="filters">
-            <select value={selectedSection ?? ""} onChange={(event) => { setSelectedSection(Number(event.target.value)); setSelectedTeacher(null); }}>
+            <select value={selectedSection ?? ""} onChange={(event) => {
+              const sectionId = Number(event.target.value);
+              setSelectedSection(sectionId);
+              setSelectedTeacher(null);
+              if (timetable) loadTimetable(timetable.timetable_id, sectionId, null).catch((error) => setMessage(error.message));
+            }}>
               {masters?.sections.map((section) => <option key={section.id} value={section.id}>{section.display_name}</option>)}
             </select>
-            <select value={selectedTeacher ?? ""} onChange={(event) => { setSelectedTeacher(event.target.value ? Number(event.target.value) : null); }}>
+            <select value={selectedTeacher ?? ""} onChange={(event) => {
+              const teacherId = event.target.value ? Number(event.target.value) : null;
+              setSelectedTeacher(teacherId);
+              if (timetable) loadTimetable(timetable.timetable_id, selectedSection, teacherId).catch((error) => setMessage(error.message));
+            }}>
               <option value="">Class view</option>
               {masters?.teachers.map((teacher) => <option key={teacher.id} value={teacher.id}>{teacher.name}</option>)}
             </select>
