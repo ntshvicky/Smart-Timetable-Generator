@@ -10,7 +10,7 @@ class Settings(BaseSettings):
     jwt_algorithm: str = "HS256"
     access_token_expire_minutes: int = 60 * 8
     gemini_api_key: str | None = None
-    gemini_model: str = "gemini-1.5-flash"
+    gemini_model: str = "gemini-2.5-flash"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
     superadmin_email: str = "superadmin@example.com"
     superadmin_password: str = "password123"

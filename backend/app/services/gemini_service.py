@@ -4,6 +4,7 @@ import json
 import re
 
 import httpx
+from pydantic import ValidationError
 from sqlalchemy.orm import Session
 
 from app.core.config import get_settings
@@ -27,8 +28,12 @@ class GeminiConstraintService:
         self.settings = get_settings()
 
     async def parse(self, school_id: int, text: str) -> ParseInstructionResponse:
+        provider = "fallback"
         if self.settings.gemini_api_key:
-            constraints, provider = await self._parse_with_gemini(text), "gemini"
+            try:
+                constraints, provider = await self._parse_with_gemini(text), "gemini"
+            except (httpx.HTTPError, KeyError, IndexError, json.JSONDecodeError, ValidationError, TypeError):
+                constraints, provider = self._fallback_parse(text), "fallback"
         else:
             constraints, provider = self._fallback_parse(text), "fallback"
         valid = [self._normalize_constraint(item) for item in constraints]

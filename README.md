@@ -97,7 +97,7 @@ For a real production deployment, configure these Vercel environment variables:
 DATABASE_URL=<cloud MySQL/PostgreSQL URL reachable from Vercel>
 JWT_SECRET=<strong random secret>
 GEMINI_API_KEY=<optional Gemini key>
-GEMINI_MODEL=gemini-1.5-flash
+GEMINI_MODEL=gemini-2.5-flash
 CORS_ORIGINS=https://<your-vercel-domain>
 SUPERADMIN_EMAIL=<platform-admin-email>
 SUPERADMIN_PASSWORD=<strong platform admin password>
@@ -119,7 +119,7 @@ If `DATABASE_URL` is not configured on Vercel, the serverless backend falls back
 
 ## Gemini
 
-Set `GEMINI_API_KEY` in `.env` to use Gemini. Without a key, the backend uses a deterministic fallback parser that returns the same validated internal schema:
+Set `GEMINI_API_KEY` in `.env` to use Gemini. The default model is `gemini-2.5-flash`. Without a key, or if Gemini returns a provider/model error, the backend uses a deterministic fallback parser that returns the same validated internal schema:
 
 ```json
 {
