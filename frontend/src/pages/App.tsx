@@ -7,10 +7,10 @@ import { TimetableGrid } from "../components/TimetableGrid";
 export function App() {
   const [auth, setAuth] = useState(() => localStorage.getItem("token"));
   const [mode, setMode] = useState<"login" | "register">("login");
-  const [form, setForm] = useState({ school_name: "Demo School", full_name: "Admin User", email: "admin@example.com", password: "password123" });
+  const [form, setForm] = useState({ school_name: "", full_name: "", email: "", password: "" });
   const [summary, setSummary] = useState<Record<string, number>>({});
   const [masters, setMasters] = useState<MasterData | null>(null);
-  const [rulesText, setRulesText] = useState("Keep Math always in first half for class 5A. Teacher Ravi is unavailable on Wednesday period 4.");
+  const [rulesText, setRulesText] = useState("");
   const [previewRules, setPreviewRules] = useState<Constraint[]>([]);
   const [timetable, setTimetable] = useState<Timetable | null>(null);
   const [selectedSection, setSelectedSection] = useState<number | null>(null);
@@ -51,6 +51,10 @@ export function App() {
   const filteredTimetable = useMemo(() => timetable, [timetable]);
 
   async function submitAuth() {
+    if (!form.email || !form.password || (mode === "register" && (!form.school_name || !form.full_name))) {
+      setMessage("Please fill all required fields.");
+      return;
+    }
     const result = mode === "register" ? await api.register(form) : await api.login({ email: form.email, password: form.password });
     localStorage.setItem("token", result.access_token);
     setAuth(result.access_token);
@@ -219,7 +223,7 @@ export function App() {
 
         <section id="rules" className="band">
           <div className="sectionHeader"><h2>Natural-Language Rules</h2><button onClick={parseRules}><ShieldCheck size={16} /> Parse</button></div>
-          <textarea value={rulesText} onChange={(event) => setRulesText(event.target.value)} />
+          <textarea value={rulesText} onChange={(event) => setRulesText(event.target.value)} placeholder="Example: Teacher Ravi is unavailable on Wednesday period 4. Keep Math in first half for Class 5A." />
           {previewRules.length > 0 && (
             <div className="rulePreview">
               {previewRules.map((rule, index) => <div key={index}><strong>{rule.rule_type}</strong><span>{rule.priority} · {(rule.confidence_score * 100).toFixed(0)}%</span><p>{rule.parsed_description}</p></div>)}
