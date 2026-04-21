@@ -19,6 +19,7 @@ class TokenResponse(BaseModel):
     school_id: int
     user_id: int
     school_name: str
+    role: str
 
 
 class UserProfile(BaseModel):
@@ -27,3 +28,4 @@ class UserProfile(BaseModel):
     full_name: str
     school_id: int
     school_name: str
+    role: str

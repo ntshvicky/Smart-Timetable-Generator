@@ -12,6 +12,9 @@ class Settings(BaseSettings):
     gemini_api_key: str | None = None
     gemini_model: str = "gemini-1.5-flash"
     cors_origins: str = "http://localhost:5173,http://127.0.0.1:5173"
+    superadmin_email: str = "superadmin@example.com"
+    superadmin_password: str = "password123"
+    superadmin_name: str = "Platform Superadmin"
 
     model_config = SettingsConfigDict(env_file=".env", env_file_encoding="utf-8")
 

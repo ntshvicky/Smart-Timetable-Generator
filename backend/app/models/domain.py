@@ -32,6 +32,19 @@ class User(Base):
     school: Mapped[School] = relationship(back_populates="users")
 
 
+class AuditLog(Base):
+    __tablename__ = "audit_logs"
+
+    id: Mapped[int] = mapped_column(primary_key=True)
+    school_id: Mapped[int | None] = mapped_column(ForeignKey("schools.id"), index=True, nullable=True)
+    user_id: Mapped[int | None] = mapped_column(ForeignKey("users.id"), index=True, nullable=True)
+    action: Mapped[str] = mapped_column(String(80), index=True)
+    entity_type: Mapped[str] = mapped_column(String(80), default="")
+    entity_id: Mapped[str] = mapped_column(String(80), default="")
+    detail: Mapped[str] = mapped_column(Text, default="{}")
+    created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=utcnow, index=True)
+
+
 class AcademicYear(Base):
     __tablename__ = "academic_years"
     __table_args__ = (UniqueConstraint("school_id", "name"),)

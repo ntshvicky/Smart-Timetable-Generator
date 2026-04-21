@@ -18,13 +18,16 @@ from app.models import (
 )
 from app.schemas.timetable import MasterSummary
 from app.services.excel_service import ExcelService
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/data", tags=["data"])
 
 
 @router.get("/template")
-def template(db: Session = Depends(get_db), _: User = Depends(get_current_user)):
+def template(db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     stream = ExcelService(db).build_template()
+    AuditService(db).record("template_downloaded", user=current_user, entity_type="excel_template")
+    db.commit()
     return StreamingResponse(
         stream,
         media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
@@ -36,6 +39,8 @@ def template(db: Session = Depends(get_db), _: User = Depends(get_current_user))
 async def upload(file: UploadFile = File(...), db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
     content = await file.read()
     batch, errors = ExcelService(db).import_workbook(current_user.school_id, file.filename or "upload.xlsx", content)
+    AuditService(db).record("excel_uploaded", user=current_user, entity_type="upload_batch", entity_id=batch.id, detail={"filename": file.filename or "upload.xlsx", "status": batch.status, "error_count": len(errors)})
+    db.commit()
     return {"batch_id": batch.id, "status": batch.status, "errors": [e.__dict__ for e in errors]}
 
 

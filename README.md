@@ -10,7 +10,7 @@ Production-style MVP for school timetable generation from structured Excel data,
 - Gemini integration for natural-language rule parsing, with deterministic fallback when `GEMINI_API_KEY` is not set.
 - Constraint-aware timetable generator with hard checks for teacher/class slot conflicts, teacher availability, eligible teacher mappings, break periods, and subject frequency allocation.
 - Manual edit API and UI with conflict validation before saving.
-- React + TypeScript admin UI for login/register, import, rule preview/approval, generation, class/teacher views, manual editing, and Excel export.
+- React + TypeScript UI for login/register, import, rule preview/approval, generation, class/teacher views, manual editing, Excel export, and a superadmin activity dashboard.
 - Tests for Excel import, validation failure, generation success, impossible schedule, Gemini parser validation, availability conflicts, and manual edit conflicts.
 
 ## Practical Defaults
@@ -33,7 +33,7 @@ backend/app
 frontend/src
   api/          typed REST client
   components/   timetable grid and edit modal
-  pages/        admin workflow shell
+  pages/        school admin and platform superadmin workflow shell
 ```
 
 ## Excel Template
@@ -53,6 +53,7 @@ Sheets:
 - `POST /api/auth/register`
 - `POST /api/auth/login`
 - `GET /api/auth/me`
+- `GET /api/admin/overview`
 - `GET /api/data/template`
 - `POST /api/data/upload`
 - `GET /api/data/summary`
@@ -98,20 +99,23 @@ JWT_SECRET=<strong random secret>
 GEMINI_API_KEY=<optional Gemini key>
 GEMINI_MODEL=gemini-1.5-flash
 CORS_ORIGINS=https://<your-vercel-domain>
+SUPERADMIN_EMAIL=<platform-admin-email>
+SUPERADMIN_PASSWORD=<strong platform admin password>
 ```
 
 If `DATABASE_URL` is not configured on Vercel, the serverless backend falls back to SQLite in `/tmp`, which is suitable only for a temporary demo because serverless storage is not durable.
 
 ## Demo Flow
 
-1. Register a school admin.
-2. Download the Excel template from the Data section.
-3. Upload the same template to import demo master data.
-4. Parse a rule such as `Teacher Ravi is unavailable on Wednesday period 4`.
-5. Approve parsed rules if desired.
-6. Generate a timetable.
-7. Filter by class or teacher, click a slot, edit it, and save.
-8. Export the timetable to Excel.
+1. Login as the platform superadmin with the configured `SUPERADMIN_EMAIL` and `SUPERADMIN_PASSWORD` to view registered schools, users, uploads, generations, exports, and manual edits.
+2. Register a school admin.
+3. Download the Excel template from the Data section.
+4. Upload the same template to import demo master data.
+5. Parse a rule such as `Teacher Ravi is unavailable on Wednesday period 4`.
+6. Approve parsed rules if desired.
+7. Generate a timetable.
+8. Filter by class or teacher, click a slot, edit it, and save.
+9. Export the timetable to Excel.
 
 ## Gemini
 

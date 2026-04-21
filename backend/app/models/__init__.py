@@ -1,5 +1,6 @@
 from app.models.domain import (
     AcademicYear,
+    AuditLog,
     ClassSubjectRequirement,
     ConstraintParseLog,
     PeriodDefinition,
@@ -21,6 +22,7 @@ from app.models.domain import (
 
 __all__ = [
     "AcademicYear",
+    "AuditLog",
     "ClassSubjectRequirement",
     "ConstraintParseLog",
     "PeriodDefinition",

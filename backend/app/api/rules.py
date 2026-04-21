@@ -9,13 +9,17 @@ from app.core.database import get_db
 from app.models import SchedulingConstraint, User
 from app.schemas.timetable import ConstraintPayload, ParseInstructionRequest, ParseInstructionResponse
 from app.services.gemini_service import GeminiConstraintService
+from app.services.audit_service import AuditService
 
 router = APIRouter(prefix="/rules", tags=["rules"])
 
 
 @router.post("/parse", response_model=ParseInstructionResponse)
 async def parse_instruction(payload: ParseInstructionRequest, db: Session = Depends(get_db), current_user: User = Depends(get_current_user)):
-    return await GeminiConstraintService(db).parse(current_user.school_id, payload.text)
+    result = await GeminiConstraintService(db).parse(current_user.school_id, payload.text)
+    AuditService(db).record("rules_parsed", user=current_user, entity_type="constraint_parse", detail={"provider": result.provider, "constraint_count": len(result.constraints)})
+    db.commit()
+    return result
 
 
 @router.post("", response_model=ConstraintPayload)
@@ -32,6 +36,8 @@ def create_constraint(payload: ConstraintPayload, db: Session = Depends(get_db),
         confidence_score=payload.confidence_score,
     )
     db.add(row)
+    db.flush()
+    AuditService(db).record("rule_created", user=current_user, entity_type="scheduling_constraint", entity_id=row.id, detail={"rule_type": row.rule_type, "priority": row.priority})
     db.commit()
     db.refresh(row)
     return payload

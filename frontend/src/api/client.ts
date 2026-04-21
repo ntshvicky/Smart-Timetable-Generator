@@ -3,6 +3,16 @@ export type AuthResponse = {
   school_id: number;
   user_id: number;
   school_name: string;
+  role: string;
+};
+
+export type UserProfile = {
+  id: number;
+  email: string;
+  full_name: string;
+  school_id: number;
+  school_name: string;
+  role: string;
 };
 
 export type MasterData = {
@@ -49,7 +59,16 @@ export type Timetable = {
   conflicts: Conflict[];
 };
 
-const API_BASE = import.meta.env.VITE_API_BASE ?? "http://127.0.0.1:8000";
+export type AdminOverview = {
+  stats: { schools: number; users: number; uploads: number; timetables: number; manual_edits: number };
+  schools: { id: number; name: string; created_at: string; users: number; uploads: number; timetables: number }[];
+  users: { id: number; school_id: number; school_name: string; email: string; full_name: string; role: string; created_at: string }[];
+  activity: { id: number; school_id: number | null; school_name: string | null; user_id: number | null; user_email: string | null; action: string; entity_type: string; entity_id: string; detail: string; created_at: string }[];
+};
+
+const API_BASE =
+  import.meta.env.VITE_API_BASE ??
+  (globalThis.location?.hostname === "localhost" || globalThis.location?.hostname === "127.0.0.1" ? "http://127.0.0.1:8000" : "");
 
 export class AuthError extends Error {
   constructor(message: string) {
@@ -100,6 +119,8 @@ export const api = {
     request<AuthResponse>("/api/auth/register", { method: "POST", body: JSON.stringify(payload) }),
   login: (payload: { email: string; password: string }) =>
     request<AuthResponse>("/api/auth/login", { method: "POST", body: JSON.stringify(payload) }),
+  me: () => request<UserProfile>("/api/auth/me"),
+  adminOverview: () => request<AdminOverview>("/api/admin/overview"),
   summary: () => request<Record<string, number>>("/api/data/summary"),
   masters: () => request<MasterData>("/api/data/masters"),
   upload: (file: File) => {

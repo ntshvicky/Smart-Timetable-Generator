@@ -5,10 +5,13 @@ from openpyxl import load_workbook
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import ClassSubjectRequirement, Section, Subject, Teacher, TimetableEntry
+from app.api.admin import overview
+from app.api.deps import require_superadmin
+from app.models import AuditLog, ClassSubjectRequirement, Section, Subject, Teacher, TimetableEntry, User
 from app.services.excel_service import ExcelService
 from app.services.gemini_service import GeminiConstraintService
 from app.services.scheduler_service import SchedulerService
+from fastapi import HTTPException
 
 
 def import_demo(db: Session) -> None:
@@ -92,3 +95,27 @@ def test_manual_edit_prevents_teacher_double_booking(db: Session) -> None:
     db.commit()
     conflicts = SchedulerService(db).manual_edit(1, result.timetable_id, section.id, "Monday", 1, subject.id, teacher.id)
     assert any(conflict.code == "teacher_double_booked" for conflict in conflicts)
+
+
+def test_superadmin_overview_tracks_users_uploads_timetables_and_activity(db: Session) -> None:
+    import_demo(db)
+    result = SchedulerService(db).generate(1, 1, "Admin Visible")
+    admin = User(school_id=1, email="super@test.com", full_name="Super", password_hash="hash", role="superadmin")
+    db.add(admin)
+    db.add(AuditLog(school_id=1, user_id=1, action="timetable_generated", entity_type="timetable", entity_id=str(result.timetable_id), detail='{"name":"Admin Visible"}'))
+    db.commit()
+
+    report = overview(db=db, _=admin)
+
+    assert report.stats.schools == 1
+    assert report.stats.users == 2
+    assert report.stats.uploads == 1
+    assert report.stats.timetables == 1
+    assert report.activity[0].action == "timetable_generated"
+
+
+def test_non_superadmin_is_forbidden_from_platform_admin(db: Session) -> None:
+    regular_user = db.get(User, 1)
+    with pytest.raises(HTTPException) as exc:
+        require_superadmin(regular_user)
+    assert exc.value.status_code == 403
